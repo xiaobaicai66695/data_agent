@@ -1,0 +1,52 @@
+# 编译产物
+*.exe
+*.dll
+*.so
+*.o
+*.class
+target/
+
+# 依赖目录
+node_modules/
+vendor/
+.packages/
+
+# 环境变量文件
+.env
+.env.local
+.env.*.local
+
+# IDE 配置
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 操作系统生成文件
+.DS_Store
+Thumbs.db
+
+# 日志文件
+*.log
+logs/
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+*.bak
+
+# 测试覆盖率
+coverage/
+*.coverprofile
+
+# 特定语言/框架
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Go
+go.sum   # 如果团队管理依赖，可忽略，但一般建议提交
+# 但 go.mod 通常需要提交
