@@ -109,40 +109,48 @@ batchWorker() 每秒检查 timeThreshold
 
 ### 2.5 动态批次大小调整
 
-**DynamicBatcher** 根据服务器负载和延迟动态调整批次大小：
+**DynamicBatcher** 根据积压量和 Server 延迟自适应调整批次大小：
 
 **调整策略**：
 | 条件 | 操作 | 批次大小变化 |
 |------|------|-------------|
-| pending > 100 && latency < 500ms | INCREASE | currentSize * 1.5 |
-| latency > 500ms | DECREASE | currentSize * 0.7 |
+| pending > 100 && latency < 200ms | INCREASE | currentSize * 1.5 |
+| pending > 100 && latency >= 200ms | DECREASE | currentSize * 0.7 |
+| pending < 20 && stable 30s | INCREASE | currentSize * 1.5 |
 | 其他 | 保持 | 不变 |
 
 **参数**：
 - `baseSize`: 20（初始批次大小）
 - `minSize`: 5（最小批次大小）
 - `maxSize`: 100（最大批次大小）
-- `backlogThreshold`: 100（积压阈值）
-- `latencyThreshold`: 500ms（延迟阈值）
+- `highThreshold`: 100（积压阈值）
+- `lowThreshold`: 20（低积压阈值）
+- `latencyThreshold`: 200ms（延迟阈值）
 - `adjustInterval`: 10s（调整间隔）
 
 **调整算法**：
 ```
 每 10 秒检查一次：
-if pendingCount > backlogThreshold AND serverLatency < latencyThreshold:
+if pendingCount > highThreshold AND serverLatency < latencyThreshold:
     currentSize = min(currentSize * increaseFactor, maxSize)
-    log "INCREASE batch: X -> Y"
+    log "Backlog high + latency low, INCREASE batch: X -> Y"
 
-else if serverLatency > latencyThreshold:
+else if pendingCount > highThreshold:
     currentSize = max(currentSize * decreaseFactor, minSize)
-    log "DECREASE batch: X -> Y"
+    stableSince = now
+    log "Backlog high + latency high, DECREASE batch: X -> Y"
+
+else if pendingCount < lowThreshold AND (now - stableSince) >= 30s:
+    currentSize = min(currentSize * increaseFactor, maxSize)
+    log "Backlog low + stable 30s, INCREASE batch: X -> Y"
 ```
 
 **日志示例**：
 ```
-[DynamicBatch] Backlog high(150>100), latency low(200ms), INCREASE batch: 20 -> 30
-[DynamicBatch] Latency high(800ms>500ms), DECREASE batch: 30 -> 21
-[Reporter] Successfully uploaded 25 records (latency: 150ms, currentBatchSize: 30)
+[DynamicBatch] Backlog high(150>100), latency low(100ms), INCREASE batch: 20 -> 30
+[DynamicBatch] Backlog high(150>100), latency high(500ms), DECREASE batch: 30 -> 21
+[DynamicBatch] Backlog low(10<20), stable for 30s, INCREASE batch: 21 -> 31
+[Reporter] Successfully uploaded 25 records (latency: 100ms, currentBatchSize: 30)
 ```
 
 ## 3. 模块架构

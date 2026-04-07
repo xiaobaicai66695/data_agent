@@ -49,17 +49,18 @@ type DynamicBatcher struct {
 	minSize     int
 	maxSize     int
 
-	pendingCount     int
-	backlogThreshold int
+	pendingCount  int
+	highThreshold int
+	lowThreshold  int
 
 	serverLatency    time.Duration
 	latencyThreshold time.Duration
-	lastLatencyTime  time.Time
 
 	increaseFactor float64
 	decreaseFactor float64
 	adjustInterval time.Duration
 	lastAdjustTime time.Time
+	stableSince    time.Time
 }
 
 func NewDynamicBatcher(baseSize, minSize, maxSize int) *DynamicBatcher {
@@ -68,12 +69,14 @@ func NewDynamicBatcher(baseSize, minSize, maxSize int) *DynamicBatcher {
 		currentSize:      baseSize,
 		minSize:          minSize,
 		maxSize:          maxSize,
-		backlogThreshold: 100,
-		latencyThreshold: 500 * time.Millisecond,
+		highThreshold:    100,
+		lowThreshold:     20,
+		latencyThreshold: 200 * time.Millisecond,
 		increaseFactor:   1.5,
 		decreaseFactor:   0.7,
 		adjustInterval:   10 * time.Second,
 		lastAdjustTime:   time.Now(),
+		stableSince:      time.Now(),
 	}
 }
 
@@ -86,9 +89,7 @@ func (db *DynamicBatcher) GetBatchSize() int {
 func (db *DynamicBatcher) RecordLatency(latency time.Duration) {
 	db.mu.Lock()
 	defer db.mu.Unlock()
-
 	db.serverLatency = latency
-	db.lastLatencyTime = time.Now()
 }
 
 func (db *DynamicBatcher) RecordPending(count int) {
@@ -108,22 +109,31 @@ func (db *DynamicBatcher) Adjust() {
 
 	oldSize := db.currentSize
 
-	if db.pendingCount > db.backlogThreshold && db.serverLatency < db.latencyThreshold {
+	if db.pendingCount > db.highThreshold && db.serverLatency < db.latencyThreshold {
 		newSize := int(float64(db.currentSize) * db.increaseFactor)
 		if newSize > db.maxSize {
 			newSize = db.maxSize
 		}
 		db.currentSize = newSize
 		log.Printf("[DynamicBatch] Backlog high(%d>%d), latency low(%v), INCREASE batch: %d -> %d",
-			db.pendingCount, db.backlogThreshold, db.serverLatency, oldSize, db.currentSize)
-	} else if db.serverLatency > db.latencyThreshold {
+			db.pendingCount, db.highThreshold, db.serverLatency, oldSize, db.currentSize)
+	} else if db.pendingCount > db.highThreshold {
 		newSize := int(float64(db.currentSize) * db.decreaseFactor)
 		if newSize < db.minSize {
 			newSize = db.minSize
 		}
 		db.currentSize = newSize
-		log.Printf("[DynamicBatch] Latency high(%v>%v), DECREASE batch: %d -> %d",
-			db.serverLatency, db.latencyThreshold, oldSize, db.currentSize)
+		db.stableSince = time.Now()
+		log.Printf("[DynamicBatch] Backlog high(%d>%d), latency high(%v), DECREASE batch: %d -> %d",
+			db.pendingCount, db.highThreshold, db.serverLatency, oldSize, db.currentSize)
+	} else if db.pendingCount < db.lowThreshold && time.Since(db.stableSince) >= 30*time.Second {
+		newSize := int(float64(db.currentSize) * db.increaseFactor)
+		if newSize > db.maxSize {
+			newSize = db.maxSize
+		}
+		db.currentSize = newSize
+		log.Printf("[DynamicBatch] Backlog low(%d<%d), stable for 30s, INCREASE batch: %d -> %d",
+			db.pendingCount, db.lowThreshold, oldSize, db.currentSize)
 	}
 }
 
