@@ -7,7 +7,11 @@ Production-grade operations audit Agent for remote operation log collection, com
 - **PTY Collection**: Host entire shell session via PTY, no trap/DEBUG hooks dependency
 - **Offline Resumption**: SQLite local persistence, automatic retry after network recovery
 - **Idempotent Deduplication**: Global unique MessageID + server-side deduplication table
+<<<<<<< HEAD
 - **Dynamic Batching**: Adaptive batch size adjustment based on backlog count and server latency
+=======
+- **Dynamic Batching**: Adaptive batch size adjustment based on server load and latency
+>>>>>>> 2ce8a0d81666d79935171c91196138b47d37bea5
 - **Zero External Dependencies**: Pure Go + embedded SQLite, single binary distribution
 
 ## Tech Stack
@@ -140,6 +144,7 @@ message_id = SHA256(session_id:seq_num:timestamp:counter:data_hash)
 
 ### Dynamic Batching
 
+<<<<<<< HEAD
 Adaptive batch size adjustment based on backlog count and server latency.
 
 | Condition | Action | Batch Change |
@@ -147,7 +152,17 @@ Adaptive batch size adjustment based on backlog count and server latency.
 | pending > 100 && latency < 200ms | INCREASE | ×1.5 |
 | pending > 100 && latency >= 200ms | DECREASE | ×0.7 |
 | pending < 20 && stable 30s | INCREASE | ×1.5 |
+=======
+| Condition | Action | Batch Change |
+|-----------|--------|--------------|
+| pending > 100 && latency < 500ms | INCREASE | ×1.5 |
+| latency > 500ms | DECREASE | ×0.7 |
+>>>>>>> 2ce8a0d81666d79935171c91196138b47d37bea5
 
 ## License
 
 MIT
+<<<<<<< HEAD
+=======
+[README.md](https://github.com/user-attachments/files/26426777/README.md)
+>>>>>>> 2ce8a0d81666d79935171c91196138b47d37bea5
